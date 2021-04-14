@@ -7,6 +7,7 @@
     using UnityEngine.Profiling;
     using UnityEngine.UI;
     using SeekableAesAssetBundle.Scripts;
+    using Cysharp.Threading.Tasks;
 
     public sealed class Sample : MonoBehaviour
     {
@@ -55,7 +56,7 @@
             _buttonLoadFromStream.onClick.AddListener(LoadFromStreamImpl);
         }
 
-        void LoadFromFileImpl()
+        async void LoadFromFileImpl()
         {
             var path = SamplePathUtility.GetAssetBundlePath(CurrentCompressType, IsEncrypt);
             GC.Collect();
@@ -68,12 +69,12 @@
             }
 
             var bundle = AssetBundle.LoadFromFile(path);
-            ApplyImages(bundle);
+            await ApplyImages(bundle);
 
             Profiler.EndSample();
         }
 
-        void LoadFromMemoryImpl()
+        async void LoadFromMemoryImpl()
         {
             var path = SamplePathUtility.GetAssetBundlePath(CurrentCompressType, IsEncrypt);
             GC.Collect();
@@ -82,12 +83,12 @@
             byte[] bytes = null;
             bytes = IsEncrypt ? EncryptHelper.DecryptBinary(path) : File.ReadAllBytes(path);
             var bundle = AssetBundle.LoadFromMemory(bytes);
-            ApplyImages(bundle);
+            await ApplyImages(bundle);
 
             Profiler.EndSample();
         }
 
-        void LoadFromStreamImpl()
+        async void LoadFromStreamImpl()
         {
             var path = SamplePathUtility.GetAssetBundlePath(CurrentCompressType, IsEncrypt);
             GC.Collect();
@@ -99,7 +100,7 @@
                 using (var cryptStream = new SeekableAesStream(reader, EncryptHelper.Password, EncryptHelper.UniqueSalt))
                 {
                     var bundle = AssetBundle.LoadFromStream(cryptStream);
-                    ApplyImages(bundle);
+                    await ApplyImages(bundle);
                 }
             }
             else
@@ -107,18 +108,20 @@
                 using (var reader = new FileStream(path, FileMode.Open))
                 {
                     var bundle = AssetBundle.LoadFromStream(reader);
-                    ApplyImages(bundle);
+                    await ApplyImages(bundle);
                 }
             }
 
             Profiler.EndSample();
         }
 
-        void ApplyImages(AssetBundle bundle)
+        async UniTask ApplyImages(AssetBundle bundle)
         {
             for (var i = 0; i < Samples.Length; i++)
             {
-                _sampleImages[i].sprite = bundle.LoadAsset<Sprite>(Samples[i]);
+                var request = bundle.LoadAssetAsync<Sprite>(Samples[i]);
+                await UniTask.WaitUntil(() => request.isDone);
+                _sampleImages[i].sprite = request.asset as Sprite;
             }
         }
     }
